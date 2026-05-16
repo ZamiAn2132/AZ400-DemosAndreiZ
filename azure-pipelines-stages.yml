@@ -112,6 +112,35 @@ stages:
 
           - script: |
               echo "Deploying static website to PROD..."
+              echo "Artifact downloaded from:"
+              echo "$(Pipeline.Workspace)/$(artifactName)"
+
+              echo "Files received by PROD stage:"
               ls -la $(Pipeline.Workspace)/$(artifactName)
+
+              mkdir -p $(Pipeline.Workspace)/prod-deployment-evidence/package
+
+              cp -r $(Pipeline.Workspace)/$(artifactName)/* $(Pipeline.Workspace)/prod-deployment-evidence/package/
+
+              echo "Environment: PROD" > $(Pipeline.Workspace)/prod-deployment-evidence/deployment-summary.txt
+              echo "Application: Static Website" >> $(Pipeline.Workspace)/prod-deployment-evidence/deployment-summary.txt
+              echo "Artifact: $(artifactName)" >> $(Pipeline.Workspace)/prod-deployment-evidence/deployment-summary.txt
+              echo "Pipeline run: $(Build.BuildNumber)" >> $(Pipeline.Workspace)/prod-deployment-evidence/deployment-summary.txt
+              echo "Commit: $(Build.SourceVersion)" >> $(Pipeline.Workspace)/prod-deployment-evidence/deployment-summary.txt
+              echo "Status: Deployment simulated successfully" >> $(Pipeline.Workspace)/prod-deployment-evidence/deployment-summary.txt
+              echo "Deployed at UTC: $(date -u)" >> $(Pipeline.Workspace)/prod-deployment-evidence/deployment-summary.txt
+
+              echo "PROD deployment summary:"
+              cat $(Pipeline.Workspace)/prod-deployment-evidence/deployment-summary.txt
+
+              echo "PROD package content:"
+              ls -la $(Pipeline.Workspace)/prod-deployment-evidence/package
+
               echo "Deployment to PROD completed."
             displayName: 'Simulate Prod deployment'
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish PROD deployment evidence'
+            inputs:
+              targetPath: '$(Pipeline.Workspace)/prod-deployment-evidence'
+              artifact: 'prod-deployment-evidence'
