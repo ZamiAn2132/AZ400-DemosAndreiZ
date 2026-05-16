@@ -1,0 +1,62 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  artifactName: 'static-website'
+
+steps:
+- checkout: self
+  displayName: 'Checkout GitHub repository'
+
+- script: |
+    echo "Repository files:"
+    ls -la
+  displayName: 'Show repository files'
+
+- script: |
+    echo "Validating required website files..."
+
+    test -f index.html
+    test -f style.css
+    test -f script.js
+    test -f healthcheck.txt
+
+    echo "All required files exist."
+  displayName: 'Validate website files'
+
+- script: |
+    echo "Running basic health check..."
+
+    test -s index.html
+    test -s style.css
+    test -s script.js
+    test -s healthcheck.txt
+
+    echo "Health check passed. Files are not empty."
+  displayName: 'Run health check'
+
+- script: |
+    echo "Preparing static website artifact..."
+
+    mkdir -p $(Build.ArtifactStagingDirectory)/site
+
+    cp index.html $(Build.ArtifactStagingDirectory)/site/
+    cp style.css $(Build.ArtifactStagingDirectory)/site/
+    cp script.js $(Build.ArtifactStagingDirectory)/site/
+    cp README.md $(Build.ArtifactStagingDirectory)/site/
+    cp demotest.txt $(Build.ArtifactStagingDirectory)/site/
+    cp healthcheck.txt $(Build.ArtifactStagingDirectory)/site/
+
+    echo "Artifact content:"
+    ls -la $(Build.ArtifactStagingDirectory)/site
+  displayName: 'Prepare artifact'
+
+- task: PublishBuildArtifacts@1
+  displayName: 'Publish website artifact'
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)/site'
+    ArtifactName: '$(artifactName)'
+    publishLocation: 'Container'
