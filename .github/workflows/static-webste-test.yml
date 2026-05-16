@@ -1,0 +1,67 @@
+name: Static Website CI
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  validate-website:
+    name: Validate static website
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout GitHub repository
+        uses: actions/checkout@v4
+
+      - name: Show repository files
+        run: |
+          echo "Repository files:"
+          ls -la
+
+      - name: Validate required website files
+        run: |
+          echo "Validating required website files..."
+
+          test -f index.html
+          test -f style.css
+          test -f script.js
+          test -f healthcheck.txt
+
+          echo "All required files exist."
+
+      - name: Run basic health check
+        run: |
+          echo "Running basic health check..."
+
+          test -s index.html
+          test -s style.css
+          test -s script.js
+          test -s healthcheck.txt
+
+          echo "Health check passed. Files are not empty."
+
+      - name: Prepare website artifact
+        run: |
+          echo "Preparing static website artifact..."
+
+          mkdir -p dist
+
+          cp index.html dist/
+          cp style.css dist/
+          cp script.js dist/
+          cp README.md dist/
+          cp demotest.txt dist/
+          cp healthcheck.txt dist/
+
+          echo "Artifact content:"
+          ls -la dist
+
+      - name: Upload website artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-website
+          path: dist
+          if-no-files-found: error
+          retention-days: 7
