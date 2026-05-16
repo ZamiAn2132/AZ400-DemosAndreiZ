@@ -1,0 +1,117 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  artifactName: 'static-website'
+
+stages:
+- stage: Build
+  displayName: 'Build and package website'
+  jobs:
+  - job: BuildWebsite
+    displayName: 'Validate and publish artifact'
+    steps:
+    - checkout: self
+      displayName: 'Checkout GitHub repository'
+
+    - script: |
+        echo "Validating website files..."
+
+        test -f index.html
+        test -f style.css
+        test -f script.js
+        test -f healthcheck.txt
+
+        test -s index.html
+        test -s style.css
+        test -s script.js
+        test -s healthcheck.txt
+
+        echo "Validation passed."
+      displayName: 'Validate website files'
+
+    - script: |
+        echo "Preparing artifact..."
+
+        mkdir -p $(Build.ArtifactStagingDirectory)/site
+
+        cp index.html $(Build.ArtifactStagingDirectory)/site/
+        cp style.css $(Build.ArtifactStagingDirectory)/site/
+        cp script.js $(Build.ArtifactStagingDirectory)/site/
+        cp README.md $(Build.ArtifactStagingDirectory)/site/
+        cp demotest.txt $(Build.ArtifactStagingDirectory)/site/
+        cp healthcheck.txt $(Build.ArtifactStagingDirectory)/site/
+
+        echo "Artifact content:"
+        ls -la $(Build.ArtifactStagingDirectory)/site
+      displayName: 'Prepare website artifact'
+
+    - publish: $(Build.ArtifactStagingDirectory)/site
+      artifact: $(artifactName)
+      displayName: 'Publish website artifact'
+
+- stage: Deploy_Dev
+  displayName: 'Deploy to Dev'
+  dependsOn: Build
+  jobs:
+  - deployment: DeployDev
+    displayName: 'Deploy website to Dev'
+    environment: 'AZ400-Dev'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: $(artifactName)
+            displayName: 'Download artifact'
+
+          - script: |
+              echo "Deploying static website to DEV..."
+              ls -la $(Pipeline.Workspace)/$(artifactName)
+              echo "Deployment to DEV completed."
+            displayName: 'Simulate Dev deployment'
+
+- stage: Deploy_Test
+  displayName: 'Deploy to Test'
+  dependsOn: Deploy_Dev
+  jobs:
+  - deployment: DeployTest
+    displayName: 'Deploy website to Test'
+    environment: 'AZ400-Test'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: $(artifactName)
+            displayName: 'Download artifact'
+
+          - script: |
+              echo "Deploying static website to TEST..."
+              ls -la $(Pipeline.Workspace)/$(artifactName)
+              echo "Deployment to TEST completed."
+            displayName: 'Simulate Test deployment'
+
+- stage: Deploy_Prod
+  displayName: 'Deploy to Prod'
+  dependsOn: Deploy_Test
+  jobs:
+  - deployment: DeployProd
+    displayName: 'Deploy website to Prod'
+    environment: 'AZ400-Prod'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: $(artifactName)
+            displayName: 'Download artifact'
+
+          - script: |
+              echo "Deploying static website to PROD..."
+              ls -la $(Pipeline.Workspace)/$(artifactName)
+              echo "Deployment to PROD completed."
+            displayName: 'Simulate Prod deployment'
