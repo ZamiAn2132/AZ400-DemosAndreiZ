@@ -1,0 +1,101 @@
+trigger: none
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  artifactName: 'static-website'
+
+stages:
+- stage: Build
+  displayName: 'Build website artifact'
+  jobs:
+  - job: BuildWebsite
+    displayName: 'Validate and package website'
+    steps:
+    - checkout: self
+      displayName: 'Checkout GitHub repository'
+
+    - script: |
+        echo "Validating website files..."
+
+        test -f index.html
+        test -f style.css
+        test -f script.js
+        test -f healthcheck.txt
+
+        test -s index.html
+        test -s style.css
+        test -s script.js
+        test -s healthcheck.txt
+
+        echo "Validation passed."
+      displayName: 'Validate website files'
+
+    - script: |
+        echo "Preparing website artifact..."
+
+        mkdir -p $(Build.ArtifactStagingDirectory)/site
+
+        cp index.html $(Build.ArtifactStagingDirectory)/site/
+        cp style.css $(Build.ArtifactStagingDirectory)/site/
+        cp script.js $(Build.ArtifactStagingDirectory)/site/
+        cp README.md $(Build.ArtifactStagingDirectory)/site/
+        cp demotest.txt $(Build.ArtifactStagingDirectory)/site/
+        cp healthcheck.txt $(Build.ArtifactStagingDirectory)/site/
+
+        echo "Artifact content:"
+        ls -la $(Build.ArtifactStagingDirectory)/site
+      displayName: 'Prepare artifact'
+
+    - publish: $(Build.ArtifactStagingDirectory)/site
+      artifact: $(artifactName)
+      displayName: 'Publish website artifact'
+
+- stage: Deploy_Prod
+  displayName: 'Deploy to Prod - protected by release gate'
+  dependsOn: Build
+  jobs:
+  - deployment: DeployProd
+    displayName: 'Deploy website to Prod'
+    environment: 'AZ400-ReleaseGate-Prod'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: $(artifactName)
+            displayName: 'Download artifact'
+
+          - script: |
+              echo "Release gate passed."
+              echo "Deployment to PROD is now allowed."
+
+              echo "Artifact received in PROD stage:"
+              ls -la $(Pipeline.Workspace)/$(artifactName)
+
+              mkdir -p $(Pipeline.Workspace)/release-gate-evidence/package
+
+              cp -r $(Pipeline.Workspace)/$(artifactName)/* $(Pipeline.Workspace)/release-gate-evidence/package/
+
+              echo "Environment: PROD" > $(Pipeline.Workspace)/release-gate-evidence/release-gate-summary.txt
+              echo "Gate: Business Hours" >> $(Pipeline.Workspace)/release-gate-evidence/release-gate-summary.txt
+              echo "Gate result: Passed" >> $(Pipeline.Workspace)/release-gate-evidence/release-gate-summary.txt
+              echo "Artifact: $(artifactName)" >> $(Pipeline.Workspace)/release-gate-evidence/release-gate-summary.txt
+              echo "Pipeline run: $(Build.BuildNumber)" >> $(Pipeline.Workspace)/release-gate-evidence/release-gate-summary.txt
+              echo "Commit: $(Build.SourceVersion)" >> $(Pipeline.Workspace)/release-gate-evidence/release-gate-summary.txt
+              echo "Deployment simulation: Completed" >> $(Pipeline.Workspace)/release-gate-evidence/release-gate-summary.txt
+              echo "Checked at UTC: $(date -u)" >> $(Pipeline.Workspace)/release-gate-evidence/release-gate-summary.txt
+
+              echo "Release gate summary:"
+              cat $(Pipeline.Workspace)/release-gate-evidence/release-gate-summary.txt
+
+              echo "PROD package content:"
+              ls -la $(Pipeline.Workspace)/release-gate-evidence/package
+            displayName: 'Simulate Prod deployment after gate'
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish release gate evidence'
+            inputs:
+              targetPath: '$(Pipeline.Workspace)/release-gate-evidence'
+              artifact: 'release-gate-evidence'
